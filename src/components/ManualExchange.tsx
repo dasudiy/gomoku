@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { copyToClipboard } from '../lib/clipboard';
 
 interface Props {
   mySignal: string | null;   // our offer/answer to share
@@ -19,9 +20,12 @@ export default function ManualExchange({ mySignal, isHost, onApply, onDismiss }:
 
   const handleCopy = () => {
     if (!mySignal) return;
-    navigator.clipboard.writeText(mySignal);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    copyToClipboard(mySignal).then(success => {
+      if (success) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    });
   };
 
   const handleApply = () => {

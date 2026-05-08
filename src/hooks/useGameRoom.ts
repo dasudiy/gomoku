@@ -4,6 +4,7 @@ import { PeerConnection, decompressSignals } from '../lib/transport';
 import { createGame, placeMove, checkWin, type Ruleset, type Player } from '../lib/game';
 import { useChat } from './useChat';
 import { audio } from '../lib/audio';
+import { copyToClipboard } from '../lib/clipboard';
 
 export function useGameRoom() {
   const [identity] = useState(() => getOrCreateIdentity());
@@ -234,8 +235,13 @@ export function useGameRoom() {
   }, [sendPayload, identity.pk]);
 
   const copyInvite = useCallback(() => {
-    navigator.clipboard.writeText(window.location.href);
-    chatRef.current.addSystem('📋 Invite link copied to clipboard.');
+    copyToClipboard(window.location.href).then(success => {
+      if (success) {
+        chatRef.current.addSystem('📋 Invite link copied to clipboard.');
+      } else {
+        chatRef.current.addSystem('⚠️ Failed to copy invite link.');
+      }
+    });
   }, []);
 
   const requestReset = useCallback(() => {
