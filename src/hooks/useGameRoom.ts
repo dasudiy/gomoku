@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getOrCreateIdentity, signPayload, verifyPayload, getPayloadFromEvent } from '../lib/identity';
-import { PeerConnection } from '../lib/transport';
+import { PeerConnection, decompressSignals } from '../lib/transport';
 import { createGame, placeMove, checkWin, type Ruleset, type Player } from '../lib/game';
 import { useChat } from './useChat';
+import { audio } from '../lib/audio';
 
 export function useGameRoom() {
   const [identity] = useState(() => getOrCreateIdentity());
@@ -16,16 +17,19 @@ export function useGameRoom() {
   const [game, setGame] = useState(() => createGame('standard'));
   const [wins, setWins] = useState<[number, number]>([0, 0]);
 
+  // Manual exchange state
+  const [mySignal, setMySignal] = useState<string | null>(null);      // compressed offer/answer to share
+  const [showManualExchange, setShowManualExchange] = useState(false);  // show the manual dialog
+
   const chat = useChat();
 
-  // Refs for values read inside callbacks to avoid stale closures
   const peerConnRef = useRef<PeerConnection | null>(null);
   const isConnectedRef = useRef(false);
   const myPlayerRef = useRef<Player | null>(null);
   const seqRef = useRef(0);
   const lastReceivedSeqRef = useRef(-1);
   const initializedRef = useRef(false);
-  // Stable refs for chat functions (avoids callback chain instability)
+  const manualTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const chatRef = useRef(chat);
   chatRef.current = chat;
 
@@ -42,6 +46,8 @@ export function useGameRoom() {
 
       if (payload.type === 'move') {
         const { x, y, player } = payload;
+        audio.playMove(false);
+        window.focus();
         setGame(prev => {
           const next = placeMove(prev, x, y, player);
           if (!next) return prev;
@@ -49,20 +55,49 @@ export function useGameRoom() {
           if (win) {
             setWinner(win);
             setWins(w => win === 1 ? [w[0] + 1, w[1]] : [w[0], w[1] + 1]);
-            chatRef.current.addSystem(win === myPlayerRef.current ? '🏆 You win!' : '💀 You lost. Better luck next time!');
+            const isMyWin = win === myPlayerRef.current;
+            chatRef.current.addSystem(isMyWin ? '🏆 You win!' : '💀 You lost. Better luck next time!');
+            if (isMyWin) audio.playWin(); else audio.playLose();
           }
           setTurn(player === 1 ? 2 : 1);
           return next;
         });
       } else if (payload.type === 'chat') {
+        audio.playMessage();
         chatRef.current.addUser(payload.text, event.pubkey, false);
+      } else if (payload.type === 'reset') {
+        chatRef.current.addSystem('🔄 Opponent started a new game.');
+        setGame(createGame(rules));
+        setWinner(0);
+        setTurn(1);
       }
     } catch (e) {
       console.error('Failed to parse peer data', e);
     }
+  }, [rules]);
+
+  const setupPeerEvents = useCallback((conn: PeerConnection) => {
+    // Get our local signal (offer or answer) for manual exchange
+    conn.localSignalReady.then(compressed => {
+      setMySignal(compressed);
+    });
+
+    // 15s fallback: show manual exchange dialog if not connected
+    manualTimeoutRef.current = setTimeout(() => {
+      if (!isConnectedRef.current) {
+        setShowManualExchange(true);
+        chatRef.current.addSystem('⚠️ Auto-connect timed out. Use the manual exchange panel.');
+      }
+    }, 15000);
   }, []);
 
-  const initRoom = useCallback((isHost: boolean, rId: string, rls: Ruleset, player: Player) => {
+  const initRoom = useCallback((
+    isHost: boolean,
+    rId: string,
+    rls: Ruleset,
+    player: Player,
+    initialSignals?: any[],
+  ) => {
     setRoomId(rId);
     setRules(rls);
     setMyPlayer(player);
@@ -72,13 +107,23 @@ export function useGameRoom() {
     setTurn(1);
     seqRef.current = 0;
     lastReceivedSeqRef.current = -1;
+    setIsConnected(false);
+    setMySignal(null);
+    setShowManualExchange(false);
+    if (manualTimeoutRef.current) clearTimeout(manualTimeoutRef.current);
 
     peerConnRef.current?.destroy();
 
     const conn = new PeerConnection(isHost, rId, identity.sk, {
       onConnect: () => {
         setIsConnected(true);
-        chatRef.current.addSystem('🟢 Opponent connected. Game started!');
+        setShowManualExchange(false);
+        if (manualTimeoutRef.current) clearTimeout(manualTimeoutRef.current);
+        if (conn.relayMode) {
+          chatRef.current.addSystem('🔄 WebRTC failed — connected via relay (higher latency).');
+        } else {
+          chatRef.current.addSystem('🟢 Opponent connected. Game started!');
+        }
       },
       onData: handleRemoteData,
       onClose: () => {
@@ -87,12 +132,13 @@ export function useGameRoom() {
       },
       onError: (err) => {
         console.error('Peer error:', err);
-        chatRef.current.addSystem('⚠️ Connection error.');
+        chatRef.current.addSystem('⚠️ Connection error — will fallback to relay.');
       },
-    }, setRelayCount);
+    }, setRelayCount, undefined, initialSignals);
 
     peerConnRef.current = conn;
-  }, [identity.sk, handleRemoteData]);
+    setupPeerEvents(conn);
+  }, [identity.sk, handleRemoteData, setupPeerEvents]);
 
   // Parse URL hash on load
   useEffect(() => {
@@ -104,60 +150,74 @@ export function useGameRoom() {
     const rId = params.get('room');
     const rls = (params.get('rules') as Ruleset) || 'standard';
     const hostPk = params.get('pubkey');
+    const offerEncoded = params.get('offer');
 
-    if (rId) {
-      if (hostPk && hostPk !== identity.pk) {
-        initRoom(false, rId, rls, 2);
-      } else {
-        initRoom(true, rId, rls, 1);
+    if (!rId) return;
+
+    if (hostPk && hostPk !== identity.pk) {
+      // Guest: decompress offer from URL if present
+      let initialSignals: any[] | undefined;
+      if (offerEncoded) {
+        try {
+          initialSignals = decompressSignals(offerEncoded);
+          chatRef.current.addSystem('📡 Offer found in invite link — connecting...');
+        } catch {
+          chatRef.current.addSystem('⚠️ Could not parse offer from invite link.');
+        }
       }
+      initRoom(false, rId, rls, 2, initialSignals);
+    } else {
+      // Host re-joined (page refresh) — recreate connection
+      initRoom(true, rId, rls, 1);
     }
   }, [identity.pk, initRoom]);
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => { peerConnRef.current?.destroy(); };
+    return () => {
+      peerConnRef.current?.destroy();
+      if (manualTimeoutRef.current) clearTimeout(manualTimeoutRef.current);
+    };
   }, []);
 
   const sendPayload = useCallback(async (payload: any) => {
     const conn = peerConnRef.current;
-    if (!conn?.peer || conn.peer.destroyed || !isConnectedRef.current) return;
+    if (!conn || !isConnectedRef.current) return;
     const fullPayload = { ...payload, seq: seqRef.current++ };
     const signedEvent = await signPayload(fullPayload, identity.sk);
-    conn.peer.send(JSON.stringify(signedEvent));
+    conn.send(JSON.stringify(signedEvent));
   }, [identity.sk]);
 
   const startAsHost = useCallback((selectedRules: Ruleset) => {
     const rId = Math.random().toString(36).substring(2, 10);
     initRoom(true, rId, selectedRules, 1);
 
-    const inviteParams = new URLSearchParams();
-    inviteParams.set('room', rId);
-    inviteParams.set('rules', selectedRules);
-    inviteParams.set('pubkey', identity.pk);
-    window.location.hash = inviteParams.toString();
-
-    setTimeout(() => {
-      chatRef.current.addSystem(`🏠 Room created: ${rId}`);
-      chatRef.current.addSystem('📋 Copy the invite link and share it with your opponent.');
-    }, 50);
+    // Build invite URL after offer is ready (includes compressed offer)
+    peerConnRef.current?.localSignalReady.then(offerEncoded => {
+      const params = new URLSearchParams();
+      params.set('room', rId);
+      params.set('rules', selectedRules);
+      params.set('pubkey', identity.pk);
+      params.set('offer', offerEncoded);
+      window.location.hash = params.toString();
+      chatRef.current.addSystem(`🏠 Room ${rId} ready — offer embedded in invite link.`);
+      chatRef.current.addSystem('📋 Copy and share the invite link from the left panel.');
+    });
   }, [identity.pk, initRoom]);
 
   const handleMove = useCallback((x: number, y: number) => {
     if (!isConnectedRef.current || winner !== 0 || turn !== myPlayerRef.current) return;
-
     setGame(prev => {
       const next = placeMove(prev, x, y, myPlayerRef.current!);
-      if (!next) {
-        chatRef.current.addSystem('⚠️ Invalid move.');
-        return prev;
-      }
+      if (!next) { chatRef.current.addSystem('⚠️ Invalid move.'); return prev; }
+      audio.playMove(true);
       sendPayload({ type: 'move', x, y, player: myPlayerRef.current });
       const win = checkWin(next, x, y);
       if (win) {
         setWinner(win);
         setWins(w => win === 1 ? [w[0] + 1, w[1]] : [w[0], w[1] + 1]);
-        chatRef.current.addSystem(win === myPlayerRef.current ? '🏆 You win!' : '💀 You lost.');
+        const isMyWin = win === myPlayerRef.current;
+        chatRef.current.addSystem(isMyWin ? '🏆 You win!' : '💀 You lost.');
+        if (isMyWin) audio.playWin(); else audio.playLose();
       }
       setTurn(myPlayerRef.current === 1 ? 2 : 1);
       return next;
@@ -174,9 +234,31 @@ export function useGameRoom() {
     chatRef.current.addSystem('📋 Invite link copied to clipboard.');
   }, []);
 
+  const requestReset = useCallback(() => {
+    if (!isConnectedRef.current) return;
+    sendPayload({ type: 'reset' });
+    chatRef.current.addSystem('🔄 You started a new game.');
+    setGame(createGame(rules));
+    setWinner(0);
+    setTurn(1);
+  }, [sendPayload, rules]);
+
+  /** Host: apply the answer pasted by user */
+  const applyManualSignal = useCallback((encoded: string) => {
+    try {
+      peerConnRef.current?.applyManualSignal(encoded);
+      chatRef.current.addSystem('🔌 Manual signal applied — waiting for connection...');
+      setShowManualExchange(false);
+    } catch {
+      chatRef.current.addSystem('❌ Invalid signal data. Please try again.');
+    }
+  }, []);
+
   return {
     identity, roomId, rules, isConnected, relayCount,
     myPlayer, turn, winner, game, wins, chat,
-    startAsHost, handleMove, handleSendMessage, copyInvite,
+    mySignal, showManualExchange,
+    startAsHost, handleMove, handleSendMessage,
+    copyInvite, requestReset, applyManualSignal,
   };
 }

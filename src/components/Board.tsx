@@ -37,9 +37,8 @@ const Board: React.FC<BoardProps> = ({ board, onMove, disabled, lastMove, myPlay
   return (
     <div className="board-wrapper">
       <svg
-        width={BOARD_PX}
-        height={BOARD_PX}
-        style={{ display: 'block' }}
+        viewBox={`0 0 ${BOARD_PX} ${BOARD_PX}`}
+        style={{ display: 'block', maxWidth: '100%', height: 'auto', width: BOARD_PX }}
         onMouseLeave={() => setHover(null)}
       >
         {/* Board background */}

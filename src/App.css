@@ -167,6 +167,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .board-wrapper {
@@ -607,3 +608,205 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+/* ──────────────────────────────────────────────
+   Status Waiting
+   ────────────────────────────────────────────── */
+.status-waiting {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ──────────────────────────────────────────────
+   Manual Exchange Button (header)
+   ────────────────────────────────────────────── */
+.btn-manual-trigger {
+  background: rgba(78,168,222,0.12);
+  border: 1px solid rgba(78,168,222,0.35);
+  border-radius: var(--radius-sm);
+  color: var(--blue);
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-manual-trigger:hover { background: rgba(78,168,222,0.25); }
+
+/* ──────────────────────────────────────────────
+   Manual Exchange Overlay
+   ────────────────────────────────────────────── */
+.manual-exchange-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: slideIn 0.25s ease-out;
+}
+
+.manual-exchange-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  width: min(520px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.manual-exchange-modal h3 {
+  font-size: 18px;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.manual-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.manual-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.manual-section label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.manual-copy-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.manual-textarea {
+  flex: 1;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 8px 10px;
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  resize: none;
+  outline: none;
+  line-break: anywhere;
+  transition: border-color var(--transition);
+}
+.manual-textarea:focus { border-color: rgba(212,168,83,0.5); }
+
+.btn-manual-copy {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+.btn-manual-copy:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+.btn-manual-copy:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-dismiss {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  padding: 7px 16px;
+  font-size: 12px;
+  cursor: pointer;
+  align-self: flex-end;
+  transition: all var(--transition);
+}
+.btn-dismiss:hover { border-color: var(--border-hover); color: var(--text-primary); }
+
+/* ──────────────────────────────────────────────
+   Game Over Overlay
+   ────────────────────────────────────────────── */
+.game-over-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  border-radius: var(--radius-md);
+  animation: slideIn 0.3s ease-out;
+}
+
+.game-over-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  padding: 30px 40px;
+  border-radius: var(--radius-lg);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.game-over-modal h2 {
+  font-size: 28px;
+  color: var(--gold);
+  margin-bottom: 5px;
+}
+
+.game-over-modal p {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+/* ──────────────────────────────────────────────
+   Responsive Layout
+   ────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .app-main {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .panel {
+    width: 100%;
+    border-right: none;
+    flex-shrink: 0;
+  }
+  .left-panel {
+    border-bottom: 1px solid var(--border);
+  }
+  .right-panel {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    height: 400px;
+  }
+  .board-area {
+    padding: 12px;
+    overflow: visible;
+  }
+  .board-wrapper svg {
+    max-width: 100%;
+    height: auto;
+  }
+  .header-title h1 {
+    display: none; /* hide Gomoku text to save space */
+  }
+}
