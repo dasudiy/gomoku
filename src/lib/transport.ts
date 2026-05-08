@@ -188,8 +188,10 @@ export class PeerConnection {
     });
 
     // ── Fallback: switch to relay if WebRTC fails within timeout ──
+    // Only if we've seen remote signals (opponent exists but ICE failed)
     this.fallbackTimer = setTimeout(() => {
-      if (!this.destroyed && !this.peer?.connected) {
+      this.fallbackTimer = undefined;
+      if (!this.destroyed && !this.peer?.connected && (this.gotRemoteOffer || this.gotRemoteAnswer)) {
         this.switchToRelay();
       }
     }, ICE_FALLBACK_TIMEOUT_MS);
@@ -268,6 +270,12 @@ export class PeerConnection {
       if (sig.type === 'answer') this.gotRemoteAnswer = true;
       console.log(`[WebRTC] Apply ${sig.type || 'candidate'}`);
       try { this.peer.signal(sig); } catch (e) { console.error('[WebRTC] Signal error:', e); }
+    }
+    // If initial fallback timer already expired, start a new one now that opponent exists
+    if (!this.fallbackTimer && !this.relayMode && !this.destroyed && !this.peer?.connected) {
+      this.fallbackTimer = setTimeout(() => {
+        if (!this.destroyed && !this.peer?.connected) this.switchToRelay();
+      }, ICE_FALLBACK_TIMEOUT_MS);
     }
   }
 
