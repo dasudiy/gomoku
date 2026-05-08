@@ -10,6 +10,7 @@ export function useGameRoom() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [rules, setRules] = useState<Ruleset>('standard');
   const [isConnected, setIsConnected] = useState(false);
+  const [isRelayMode, setIsRelayMode] = useState(false);
   const [relayCount, setRelayCount] = useState(0);
   const [myPlayer, setMyPlayer] = useState<Player | null>(null);
   const [turn, setTurn] = useState<Player>(1);
@@ -108,6 +109,7 @@ export function useGameRoom() {
     seqRef.current = 0;
     lastReceivedSeqRef.current = -1;
     setIsConnected(false);
+    setIsRelayMode(false);
     setMySignal(null);
     setShowManualExchange(false);
     if (manualTimeoutRef.current) clearTimeout(manualTimeoutRef.current);
@@ -119,7 +121,9 @@ export function useGameRoom() {
         setIsConnected(true);
         setShowManualExchange(false);
         if (manualTimeoutRef.current) clearTimeout(manualTimeoutRef.current);
-        if (conn.relayMode) {
+        const viaRelay = conn.relayMode;
+        setIsRelayMode(viaRelay);
+        if (viaRelay) {
           chatRef.current.addSystem('🔄 WebRTC failed — connected via relay (higher latency).');
         } else {
           chatRef.current.addSystem('🟢 Opponent connected. Game started!');
@@ -255,7 +259,7 @@ export function useGameRoom() {
   }, []);
 
   return {
-    identity, roomId, rules, isConnected, relayCount,
+    identity, roomId, rules, isConnected, isRelayMode, relayCount,
     myPlayer, turn, winner, game, wins, chat,
     mySignal, showManualExchange,
     startAsHost, handleMove, handleSendMessage,

@@ -9,7 +9,7 @@ import ManualExchange from './components/ManualExchange';
 
 function App() {
   const {
-    identity, roomId, rules, isConnected, relayCount,
+    identity, roomId, rules, isConnected, isRelayMode, relayCount,
     myPlayer, turn, winner, game, wins, chat,
     mySignal, showManualExchange,
     startAsHost, handleMove, handleSendMessage,
@@ -69,10 +69,12 @@ function App() {
             turn={turn}
             winner={winner}
             isConnected={isConnected}
+            isRelayMode={isRelayMode}
             relayCount={relayCount}
             rules={rules}
             wins={wins}
             roomId={roomId}
+            inviteReady={!!mySignal}
             onCopyInvite={copyInvite}
             onHostGame={!roomId ? startAsHost : undefined}
             selectedRules={!roomId ? selectedRules : undefined}
