@@ -4,9 +4,10 @@ A Gomoku (五子棋) game built with **React**, **Cloudflare Workers**, and **No
 
 ## Features
 
-- **Cloudflare Workers backend** — Durable Object per room, WebSocket Hibernation, SQLite event store. Free tier supports ~20K game sessions/day with near-zero idle cost.
-- **Chain-linked moves** — Each move is a [Nostr](https://github.com/nostr-protocol/nostr)-style signed event containing `prevId` (the SHA-256 ID of the previous event). The server and client both verify the chain; forging or reordering past moves is cryptographically impossible.
-- **Reconnect / history replay** — On reconnect the server streams all stored events. The client re-verifies the chain and rebuilds board state, so refreshing the page continues the game seamlessly.
+- **Cloudflare Workers backend** — Durable Object per room acting as a **pure WebSocket relay**: receives any message and broadcasts it to all other connections. No game logic, no storage, no signature verification. Worker code is ~40 lines.
+- **Chain-linked moves** — Each move is a [Nostr](https://github.com/nostr-protocol/nostr)-style signed event containing `prevId` (the SHA-256 ID of the previous event). Chain validation is entirely client-side; the server cannot tamper with the game record.
+- **Structured game lifecycle** — Room state is encoded in the chain: `genesis` (host creates room + rules) → `accept` (host admits guest) → `move` × N → optional `reset`. Observers can join and watch without affecting gameplay.
+- **Reconnect / history replay** — New clients broadcast `history_request`; any connected client responds with the full chain. The requester re-verifies every signature and `prevId`, then rebuilds board state. Works transparently for disconnects and page refreshes.
 - **Persistent identity** — A secp256k1 keypair is generated on first visit and stored in `localStorage`. Moves are signed with your private key; the opponent's client verifies them.
 - **Game rules**: Standard (无禁手) and Renju (有禁手 — forbidden moves for Black: overline, double-four, double-three).
 - **Real-time chat** — Signed chat messages over the same WebSocket.
@@ -92,16 +93,37 @@ npm run build   # outputs to dist/
 
 ## Move Chain Protocol
 
-Each game event is a Nostr event (kind `29003`) with:
+Each chain-linked event is a Nostr event (kind `29003`):
 
 ```
 tags:    [["prev", "<id of previous event>"], ["room", "<roomId>"]]
-content: JSON payload  { type: "move" | "chat" | "reset", ... }
+content: JSON payload  (see chain event types below)
 id:      SHA-256 of the canonical serialization (covers tags + content)
-sig:     Schnorr signature over id with the player's private key
+sig:     Schnorr signature with the author's private key
 ```
 
-The first event uses `prev = ""`. The server rejects any event whose `prev` doesn't match the last stored event's `id`, preventing replay attacks and out-of-order injection.
+### Chain event types
+
+| Event | Signed by | Content | Notes |
+|---|---|---|---|
+| `genesis` | Host | `{ type:"genesis", rules }` | First event, `prev=""` |
+| `accept` | Host | `{ type:"accept", opponentPk }` | Records guest pubkey; game starts |
+| `move` | Current player | `{ type:"move", x, y }` | Turn derived from chain position |
+| `reset` | Either player | `{ type:"reset" }` | New round; wins accumulate |
+
+`genesis.pubkey` = Black (player 1).  `accept.opponentPk` = White (player 2).  
+Observers are anyone whose pubkey appears in neither.
+
+### Out-of-chain messages (relayed, not stored in the game record)
+
+| Message | Purpose |
+|---|---|
+| `join_request` | Guest signals intent to join; host auto-accepts first request |
+| `history_request` | New client asks others for the event chain |
+| `history_response` | Existing client responds with full chain; requester verifies and replays |
+| `chat` | Real-time text for all room participants including observers |
+
+The worker broadcasts every message to all other connections in the room — it has no knowledge of game state, signatures, or chain structure.
 
 ## Environment Variables
 

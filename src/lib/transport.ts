@@ -1,32 +1,40 @@
 import { finalizeEvent, type Event as NostrEvent } from 'nostr-tools';
+import type { Ruleset } from './game';
 
-// Set VITE_WORKER_URL to your deployed Worker URL, e.g.:
-//   wss://gomoku-server.<your-account>.workers.dev
-// For local dev: wss://localhost:8787
 export const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'wss://localhost:8787';
 
-export type GamePayload =
-  | { type: 'move'; x: number; y: number; player: 1 | 2 }
-  | { type: 'chat'; text: string }
-  | { type: 'reset' };
+// ── Chain-linked event payloads (signed Nostr events, form the game record) ──
+
+export type ChainPayload =
+  | { type: 'genesis'; rules: Ruleset }   // host creates room, records rules
+  | { type: 'accept'; opponentPk: string } // host accepts a join_request
+  | { type: 'move'; x: number; y: number } // player places a stone (turn derived from chain)
+  | { type: 'reset' };                     // either player starts a new round
 
 export type GameEvent = NostrEvent;
 
+// ── Out-of-chain room messages (relayed but not part of the game record) ──
+
+export type RoomMessage =
+  | { type: 'chain_event'; event: GameEvent }         // chain event broadcast
+  | { type: 'join_request'; pubkey: string }           // guest asks to join
+  | { type: 'history_request' }                        // new client requests history
+  | { type: 'history_response'; events: GameEvent[] }  // existing client replies with chain
+  | { type: 'chat'; text: string; pubkey: string };    // real-time chat (not stored)
+
 export interface TransportCallbacks {
-  onAssign: (color: 1 | 2, opponentPk: string | null) => void;
-  onJoined: (opponentPk: string) => void;
-  onHistory: (events: GameEvent[]) => void;
-  onEvent: (event: GameEvent) => void;
+  onOpen: () => void;
+  onMessage: (msg: RoomMessage) => void;
   onClose: () => void;
   onError: (err: Error) => void;
 }
 
-/** Build and sign a game event forming a chain with the previous event. */
-export function createGameEvent(
-  payload: GamePayload,
+/** Build and sign a chain-linked Nostr event. prevId="" for the first event (genesis). */
+export function createChainEvent(
+  payload: ChainPayload,
   sk: Uint8Array,
   roomId: string,
-  prevId: string,  // "" for first event
+  prevId: string,
 ): GameEvent {
   return finalizeEvent({
     kind: 29003,
@@ -44,18 +52,11 @@ export class GameTransport {
   private reconnectDelay = 1000;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
   private roomId: string;
-  private pubkey: string;
   private callbacks: TransportCallbacks;
   private workerUrl: string;
 
-  constructor(
-    roomId: string,
-    pubkey: string,
-    callbacks: TransportCallbacks,
-    workerUrl = WORKER_URL,
-  ) {
+  constructor(roomId: string, callbacks: TransportCallbacks, workerUrl = WORKER_URL) {
     this.roomId = roomId;
-    this.pubkey = pubkey;
     this.callbacks = callbacks;
     this.workerUrl = workerUrl;
     this.openSocket();
@@ -69,20 +70,18 @@ export class GameTransport {
 
     ws.onopen = () => {
       this.reconnectDelay = 1000;
-      ws.send(JSON.stringify({ type: 'join', pubkey: this.pubkey }));
+      this.callbacks.onOpen();
     };
 
     ws.onmessage = (ev) => {
       try {
-        this.handleServerMessage(JSON.parse(ev.data as string));
+        this.callbacks.onMessage(JSON.parse(ev.data as string) as RoomMessage);
       } catch (e) {
         console.error('[Transport] parse error', e);
       }
     };
 
-    ws.onerror = () => {
-      this.callbacks.onError(new Error('WebSocket error'));
-    };
+    ws.onerror = () => this.callbacks.onError(new Error('WebSocket error'));
 
     ws.onclose = () => {
       this.ws = null;
@@ -93,29 +92,9 @@ export class GameTransport {
     };
   }
 
-  private handleServerMessage(msg: Record<string, unknown>): void {
-    switch (msg.type) {
-      case 'assign':
-        this.callbacks.onAssign(msg.color as 1 | 2, (msg.opponentPk as string) || null);
-        break;
-      case 'joined':
-        this.callbacks.onJoined(msg.opponentPk as string);
-        break;
-      case 'history':
-        this.callbacks.onHistory(msg.events as GameEvent[]);
-        break;
-      case 'event':
-        this.callbacks.onEvent(msg.event as GameEvent);
-        break;
-      case 'error':
-        console.warn('[Transport] server error:', msg.message);
-        break;
-    }
-  }
-
-  sendEvent(event: GameEvent): void {
+  send(msg: RoomMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'event', event }));
+      this.ws.send(JSON.stringify(msg));
     }
   }
 

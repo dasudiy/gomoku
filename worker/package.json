@@ -8,9 +8,7 @@
     "deploy": "wrangler deploy",
     "cf-typegen": "wrangler types"
   },
-  "dependencies": {
-    "nostr-tools": "^2.23.3"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250124.0",
     "typescript": "~6.0.2",

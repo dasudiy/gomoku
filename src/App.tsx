@@ -8,7 +8,7 @@ import GameInfo from './components/GameInfo';
 
 function App() {
   const {
-    identity, roomId, rules, isConnected,
+    identity, roomId, rules, isConnected, isGameStarted,
     myPlayer, turn, winner, game, wins, chat,
     startAsHost, handleMove, handleSendMessage,
     copyInvite, requestReset,
@@ -34,7 +34,7 @@ function App() {
             <span className="status-winner">
               {winner === myPlayer ? '🏆 You Win!' : '💀 Opponent Wins'}
             </span>
-          ) : roomId && isConnected ? (
+          ) : roomId && isGameStarted ? (
             <span className={`status-turn ${turn === myPlayer ? 'my-turn' : 'their-turn'}`}>
               {turn === myPlayer ? '▶ Your Turn' : '⏳ Opponent\'s Turn'}
             </span>
@@ -54,6 +54,7 @@ function App() {
             turn={turn}
             winner={winner}
             isConnected={isConnected}
+            isGameStarted={isGameStarted}
             rules={rules}
             wins={wins}
             roomId={roomId}
@@ -71,7 +72,7 @@ function App() {
               <Board
                 board={game.board}
                 onMove={handleMove}
-                disabled={!isConnected || turn !== myPlayer || winner !== 0}
+                disabled={!isGameStarted || turn !== myPlayer || winner !== 0}
                 lastMove={lastMove}
                 myPlayer={myPlayer}
               />
@@ -95,13 +96,13 @@ function App() {
           )}
         </section>
 
-        {/* Right: Chat */}
+        {/* Right: Chat — available to all room participants including observers */}
         <aside className="panel right-panel">
           <Chat
             messages={chat.messages}
             onSendMessage={handleSendMessage}
             bottomRef={chat.bottomRef}
-            disabled={!isConnected}
+            disabled={!roomId}
           />
         </aside>
       </main>

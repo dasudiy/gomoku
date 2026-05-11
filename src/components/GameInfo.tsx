@@ -7,6 +7,7 @@ interface GameInfoProps {
   turn: Player;
   winner: Player | 0;
   isConnected: boolean;
+  isGameStarted: boolean;
   rules: Ruleset;
   wins: [number, number]; // [black, white]
   roomId: string | null;
@@ -28,21 +29,24 @@ const PlayerBadge: React.FC<{ player: Player; label: string; isActive: boolean; 
   </div>
 );
 
-function connDotClass(isConnected: boolean): string {
-  return isConnected ? 'green' : 'red';
+function connDotClass(isConnected: boolean, isGameStarted: boolean): string {
+  if (isGameStarted) return 'green';
+  if (isConnected) return 'yellow';
+  return 'red';
 }
 
-function connLabel(isConnected: boolean, isHost: boolean): string {
-  if (isConnected) return 'Connected';
-  return isHost ? 'Waiting for opponent…' : 'Connecting…';
+function connLabel(isConnected: boolean, isGameStarted: boolean, isHost: boolean): string {
+  if (isGameStarted) return 'In game';
+  if (isConnected) return isHost ? 'Waiting for opponent…' : 'Waiting for host…';
+  return 'Connecting…';
 }
 
 const GameInfo: React.FC<GameInfoProps> = ({
-  identity, myPlayer, turn, winner, isConnected,
+  identity, myPlayer, turn, winner, isConnected, isGameStarted,
   rules, wins, roomId, onCopyInvite, onHostGame, selectedRules, onSelectRules,
 }) => {
   const isHost = myPlayer === 1;
-  const dotClass = connDotClass(isConnected);
+  const dotClass = connDotClass(isConnected, isGameStarted);
 
   // Truncate invite URL for display
   const inviteDisplay = React.useMemo(() => {
@@ -101,7 +105,7 @@ const GameInfo: React.FC<GameInfoProps> = ({
                 <span className="compact-label">Status</span>
                 <div className="conn-indicator">
                   <span className={`conn-dot ${dotClass}`} />
-                  <span className="conn-text">{connLabel(isConnected, isHost)}</span>
+                  <span className="conn-text">{connLabel(isConnected, isGameStarted, isHost)}</span>
                 </div>
               </div>
               {/* Rules */}
