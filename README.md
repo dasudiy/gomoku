@@ -1,91 +1,114 @@
-# Gomoku — Decentralized P2P Board Game
+# Gomoku — Online Board Game
 
-A professional, high-performance Gomoku (五子棋) game built with **React**, **Nostr**, and **WebRTC**. Experience zero-latency gameplay directly in your browser with no central server required.
+A Gomoku (五子棋) game built with **React**, **Cloudflare Workers**, and **Nostr** cryptography. Games are relayed through a Cloudflare Durable Object, with every move cryptographically signed and chained — meaning the full game history is verifiable and players can reconnect after a disconnect without losing state.
 
-![Gomoku Preview](https://raw.githubusercontent.com/gomoku/gomoku/main/preview.png) *(Note: Replace with actual screenshot later)*
+## Features
 
-## 🌟 Key Features
+- **Cloudflare Workers backend** — Durable Object per room, WebSocket Hibernation, SQLite event store. Free tier supports ~20K game sessions/day with near-zero idle cost.
+- **Chain-linked moves** — Each move is a [Nostr](https://github.com/nostr-protocol/nostr)-style signed event containing `prevId` (the SHA-256 ID of the previous event). The server and client both verify the chain; forging or reordering past moves is cryptographically impossible.
+- **Reconnect / history replay** — On reconnect the server streams all stored events. The client re-verifies the chain and rebuilds board state, so refreshing the page continues the game seamlessly.
+- **Persistent identity** — A secp256k1 keypair is generated on first visit and stored in `localStorage`. Moves are signed with your private key; the opponent's client verifies them.
+- **Game rules**: Standard (无禁手) and Renju (有禁手 — forbidden moves for Black: overline, double-four, double-three).
+- **Real-time chat** — Signed chat messages over the same WebSocket.
 
--   **Zero-Server Architecture**: Uses the [Nostr](https://github.com/nostr-protocol/nostr) protocol for decentralized signaling and peer discovery.
--   **True P2P Gameplay**: Direct browser-to-browser connection via WebRTC DataChannels for the lowest possible latency.
--   **Professional Game Interface**: 
-    -   **Three-Column Layout**: Game information, high-fidelity board, and real-time chat.
-    -   **Premium Aesthetics**: Dark mode design with glassmorphism panels, golden accents, and smooth animations.
-    -   **SVG-Based Board**: High-precision rendering with coordinate labels, star points, and 3D glossy pieces.
--   **Advanced Game Rules**:
-    -   **Standard (无禁手)**: Classic 5-in-a-row.
-    -   **Renju (有禁手)**: Implements forbidden move rules for Black (Overline, Double-Four, Double-Three).
--   **Robust Communication**: 
-    -   Integrated real-time chat with system event logging.
-    -   Automatic reconnection and signaling retry logic.
-    -   Cryptographically signed moves and messages using Nostr identity.
+## Tech Stack
 
-## 🛠️ Tech Stack
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript, Vite |
+| Backend | Cloudflare Workers + Durable Objects (SQLite) |
+| Crypto / signing | `nostr-tools` (secp256k1 / Schnorr) |
+| Styling | Vanilla CSS |
 
--   **Frontend**: React 19, TypeScript, Vite
--   **Networking**: `simple-peer` (WebRTC), `nostr-tools` (Signaling)
--   **Styling**: Vanilla CSS (Custom Design System)
--   **Security**: Nostr (NIP-01) for identity and signing
+## Project Structure
 
-## 🚀 Getting Started
+```
+src/           — React frontend
+  lib/
+    transport.ts   — GameTransport (WebSocket client, auto-reconnect)
+    identity.ts    — Keypair generation + Nostr event signing
+    game.ts        — Board logic, rule enforcement
+  hooks/
+    useGameRoom.ts — Room state, chain replay, move dispatch
+  components/      — Board, Chat, GameInfo
+
+worker/        — Cloudflare Worker (deploy separately)
+  src/index.ts   — GameRoom Durable Object + WebSocket handler
+  wrangler.toml  — DO binding, SQLite migration
+```
+
+## Getting Started
 
 ### Prerequisites
 
--   Node.js (v20 or higher)
--   npm
+- Node.js v20+
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier is sufficient)
 
-### Installation
+### 1. Deploy the Worker
 
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/yourusername/gomoku.git
-    cd gomoku
-    ```
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-
-### Development
-
-Start the local development server:
 ```bash
+cd worker
+npm install
+npx wrangler login
+npx wrangler deploy
+```
+
+Note the deployed URL, e.g. `https://gomoku-server.<your-account>.workers.dev`.
+
+### 2. Run the frontend
+
+```bash
+# in the repo root
+npm install
+
+# point the frontend at your worker
+echo "VITE_WORKER_URL=wss://gomoku-server.<your-account>.workers.dev" > .env.local
+
+npm run dev
+```
+
+For local end-to-end development, start the worker locally first:
+
+```bash
+# terminal 1
+cd worker && npx wrangler dev
+
+# terminal 2 (uses wss://localhost:8787 by default when VITE_WORKER_URL is unset)
 npm run dev
 ```
 
 ### Production Build
 
-Build the optimized production bundle:
 ```bash
-npm run build
+npm run build   # outputs to dist/
 ```
 
-## 🎮 How to Play
+## How to Play
 
-1.  **Host a Game**:
-    -   Choose your rules (Standard or Renju).
-    -   Click **Host Game**.
-    -   Copy the unique invite link generated in the sidebar.
-2.  **Join a Game**:
-    -   Open the invite link in another browser or share it with a friend.
-    -   The game will automatically connect via Nostr relays.
-3.  **Play**:
-    -   Take turns placing pieces on the intersections.
-    -   The first to reach 5 in a row (subject to rules) wins.
+1. **Host** — Choose a ruleset, click **Host Game**. A room URL is generated instantly.
+2. **Invite** — Copy the link from the sidebar and send it to your opponent.
+3. **Join** — The opponent opens the link; both players are assigned colors automatically.
+4. **Reconnect** — Either player can refresh the page at any time. The full verified game history is replayed from the server.
 
-## 📡 Default Relays
+## Move Chain Protocol
 
-The game currently uses the following Nostr relays for signaling:
-- `wss://relay.damus.io`
-- `wss://nos.lol`
-- `wss://relay.nostr.band`
-- `wss://offchain.pub`
-- `wss://relay.snort.social`
+Each game event is a Nostr event (kind `29003`) with:
 
-## 📜 License
+```
+tags:    [["prev", "<id of previous event>"], ["room", "<roomId>"]]
+content: JSON payload  { type: "move" | "chat" | "reset", ... }
+id:      SHA-256 of the canonical serialization (covers tags + content)
+sig:     Schnorr signature over id with the player's private key
+```
 
-This project is licensed under the **GPL-3.0 License**. See the [LICENSE](LICENSE) file for details.
+The first event uses `prev = ""`. The server rejects any event whose `prev` doesn't match the last stored event's `id`, preventing replay attacks and out-of-order injection.
 
----
+## Environment Variables
 
-Built with ❤️ for the decentralized web.
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_WORKER_URL` | `wss://localhost:8787` | WebSocket URL of the deployed Worker |
+
+## License
+
+GPL-3.0 — see [LICENSE](LICENSE).
