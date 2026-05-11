@@ -5,25 +5,20 @@ import type { Ruleset } from './lib/game';
 import Board from './components/Board';
 import Chat from './components/Chat';
 import GameInfo from './components/GameInfo';
-import ManualExchange from './components/ManualExchange';
 
 function App() {
   const {
-    identity, roomId, rules, isConnected, isRelayMode, relayCount,
+    identity, roomId, rules, isConnected,
     myPlayer, turn, winner, game, wins, chat,
-    mySignal, showManualExchange,
     startAsHost, handleMove, handleSendMessage,
-    copyInvite, requestReset, applyManualSignal,
+    copyInvite, requestReset,
   } = useGameRoom();
 
   const [selectedRules, setSelectedRules] = useState<Ruleset>('standard');
-  const [showManualPanel, setShowManualPanel] = useState(false);
 
   const lastMove = game.moves.length > 0
     ? { x: game.moves[game.moves.length - 1].x, y: game.moves[game.moves.length - 1].y }
     : null;
-
-  const showExchange = showManualExchange || showManualPanel;
 
   return (
     <div className="app-root">
@@ -32,7 +27,7 @@ function App() {
         <div className="header-title">
           <span className="header-icon">⬤</span>
           <h1>Gomoku</h1>
-          <span className="header-sub">P2P · Nostr · WebRTC</span>
+          <span className="header-sub">Cloudflare · Nostr</span>
         </div>
         <div className="header-status">
           {roomId && winner !== 0 ? (
@@ -46,16 +41,6 @@ function App() {
           ) : roomId ? (
             <span className="status-waiting">⏳ Waiting for opponent…</span>
           ) : null}
-          {/* Manual exchange button when in a room but not connected */}
-          {roomId && !isConnected && mySignal && (
-            <button
-              className="btn-manual-trigger"
-              onClick={() => setShowManualPanel(v => !v)}
-              title="Manual connection exchange"
-            >
-              🔌 Manual
-            </button>
-          )}
         </div>
       </header>
 
@@ -69,12 +54,9 @@ function App() {
             turn={turn}
             winner={winner}
             isConnected={isConnected}
-            isRelayMode={isRelayMode}
-            relayCount={relayCount}
             rules={rules}
             wins={wins}
             roomId={roomId}
-            inviteReady={!!mySignal}
             onCopyInvite={copyInvite}
             onHostGame={!roomId ? startAsHost : undefined}
             selectedRules={!roomId ? selectedRules : undefined}
@@ -123,16 +105,6 @@ function App() {
           />
         </aside>
       </main>
-
-      {/* Manual Exchange overlay */}
-      {showExchange && (
-        <ManualExchange
-          mySignal={mySignal}
-          isHost={myPlayer === 1}
-          onApply={applyManualSignal}
-          onDismiss={() => { setShowManualPanel(false); }}
-        />
-      )}
     </div>
   );
 }

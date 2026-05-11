@@ -7,12 +7,9 @@ interface GameInfoProps {
   turn: Player;
   winner: Player | 0;
   isConnected: boolean;
-  isRelayMode: boolean;
-  relayCount: number;
   rules: Ruleset;
   wins: [number, number]; // [black, white]
   roomId: string | null;
-  inviteReady: boolean;
   onCopyInvite: () => void;
   // Lobby
   onHostGame?: (rules: Ruleset) => void;
@@ -31,29 +28,23 @@ const PlayerBadge: React.FC<{ player: Player; label: string; isActive: boolean; 
   </div>
 );
 
-/** Connection dot color: red=no relay, yellow=relay-only, green=P2P */
-function connDotClass(isConnected: boolean, isRelayMode: boolean, relayCount: number): string {
-  if (isConnected && !isRelayMode) return 'green';   // P2P
-  if (isConnected && isRelayMode) return 'yellow';    // relay fallback
-  if (relayCount > 0) return 'yellow';                // relays up, waiting for peer
-  return 'red';                                        // no relays
+function connDotClass(isConnected: boolean): string {
+  return isConnected ? 'green' : 'red';
 }
 
-function connLabel(isConnected: boolean, isRelayMode: boolean, relayCount: number, isHost: boolean): string {
-  if (isConnected && !isRelayMode) return 'P2P Connected';
-  if (isConnected && isRelayMode) return 'Relay Mode';
-  if (relayCount > 0) return isHost ? 'Waiting…' : 'Connecting…';
-  return 'No Relay';
+function connLabel(isConnected: boolean, isHost: boolean): string {
+  if (isConnected) return 'Connected';
+  return isHost ? 'Waiting for opponent…' : 'Connecting…';
 }
 
 const GameInfo: React.FC<GameInfoProps> = ({
-  identity, myPlayer, turn, winner, isConnected, isRelayMode, relayCount,
-  rules, wins, roomId, inviteReady, onCopyInvite, onHostGame, selectedRules, onSelectRules,
+  identity, myPlayer, turn, winner, isConnected,
+  rules, wins, roomId, onCopyInvite, onHostGame, selectedRules, onSelectRules,
 }) => {
   const isHost = myPlayer === 1;
-  const dotClass = connDotClass(isConnected, isRelayMode, relayCount);
+  const dotClass = connDotClass(isConnected);
 
-  // Truncate invite URL for display (show host + path, truncate hash)
+  // Truncate invite URL for display
   const inviteDisplay = React.useMemo(() => {
     const url = window.location.href;
     const hashIdx = url.indexOf('#');
@@ -61,7 +52,7 @@ const GameInfo: React.FC<GameInfoProps> = ({
     const base = url.substring(0, hashIdx);
     const hash = url.substring(hashIdx);
     return hash.length > 40 ? `${base}#${hash.substring(1, 30)}…` : url;
-  }, [inviteReady]); // recalc when invite becomes ready
+  }, [roomId]);
 
   return (
     <div className="info-panel">
@@ -110,7 +101,7 @@ const GameInfo: React.FC<GameInfoProps> = ({
                 <span className="compact-label">Status</span>
                 <div className="conn-indicator">
                   <span className={`conn-dot ${dotClass}`} />
-                  <span className="conn-text">{connLabel(isConnected, isRelayMode, relayCount, isHost)}</span>
+                  <span className="conn-text">{connLabel(isConnected, isHost)}</span>
                 </div>
               </div>
               {/* Rules */}
@@ -146,12 +137,8 @@ const GameInfo: React.FC<GameInfoProps> = ({
             <section className="info-section">
               <h3 className="info-label">Invite</h3>
               <p className="invite-hint">Share this link with your opponent:</p>
-              <div className="invite-url">{inviteReady ? inviteDisplay : 'Generating invite…'}</div>
-              <button
-                className="btn-primary"
-                onClick={onCopyInvite}
-                disabled={!inviteReady}
-              >
+              <div className="invite-url">{inviteDisplay}</div>
+              <button className="btn-primary" onClick={onCopyInvite}>
                 📋 Copy Invite Link
               </button>
             </section>
