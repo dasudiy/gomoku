@@ -51,5 +51,8 @@ Thumbs.db
 *.sln
 *.sw?
 
+# Wrangler local state
+worker/.wrangler/
+
 # Project specific
 public/mockServiceWorker.js

@@ -1,7 +1,7 @@
 import { finalizeEvent, type Event as NostrEvent } from 'nostr-tools';
 import type { Ruleset } from './game';
 
-export const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'wss://localhost:8787';
+export const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'ws://localhost:8787';
 
 // ── Chain-linked event payloads (signed Nostr events, form the game record) ──
 
