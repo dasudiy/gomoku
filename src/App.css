@@ -323,6 +323,14 @@ body {
   border-radius: var(--radius-sm);
 }
 
+.role-badge {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+.role-badge.player { color: #7eb8f7; background: rgba(126,184,247,0.12); }
+.role-badge.observer { color: var(--text-muted); background: rgba(0,0,0,0.2); }
+
 /* Compact info grid */
 .compact-grid {
   display: grid;

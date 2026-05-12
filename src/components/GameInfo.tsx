@@ -16,6 +16,8 @@ interface GameInfoProps {
   onHostGame?: (rules: Ruleset) => void;
   selectedRules?: Ruleset;
   onSelectRules?: (r: Ruleset) => void;
+  serverUrl?: string;
+  onServerUrlChange?: (url: string) => void;
 }
 
 const PlayerBadge: React.FC<{ player: Player; label: string; isActive: boolean; isWinner: boolean }> = (
@@ -35,8 +37,8 @@ function connDotClass(isConnected: boolean, isGameStarted: boolean): string {
   return 'red';
 }
 
-function connLabel(isConnected: boolean, isGameStarted: boolean, isHost: boolean): string {
-  if (isGameStarted) return 'In game';
+function connLabel(isConnected: boolean, isGameStarted: boolean, isHost: boolean, myPlayer: Player | null): string {
+  if (isGameStarted) return myPlayer ? 'In game' : 'Observing';
   if (isConnected) return isHost ? 'Waiting for opponent…' : 'Waiting for host…';
   return 'Connecting…';
 }
@@ -44,6 +46,7 @@ function connLabel(isConnected: boolean, isGameStarted: boolean, isHost: boolean
 const GameInfo: React.FC<GameInfoProps> = ({
   identity, myPlayer, turn, winner, isConnected, isGameStarted,
   rules, wins, roomId, onCopyInvite, onHostGame, selectedRules, onSelectRules,
+  serverUrl, onServerUrlChange,
 }) => {
   const isHost = myPlayer === 1;
   const dotClass = connDotClass(isConnected, isGameStarted);
@@ -81,6 +84,18 @@ const GameInfo: React.FC<GameInfoProps> = ({
               <option value="standard">Standard (无禁手)</option>
               <option value="renju">Renju (有禁手, simplified)</option>
             </select>
+            {onServerUrlChange && serverUrl !== undefined && (
+              <>
+                <label className="rule-label">Server URL</label>
+                <input
+                  className="rule-select"
+                  type="text"
+                  value={serverUrl}
+                  onChange={e => onServerUrlChange(e.target.value)}
+                  spellCheck={false}
+                />
+              </>
+            )}
             <button className="btn-primary" onClick={() => onHostGame(selectedRules)}>
               ⚔️ Host Game
             </button>
@@ -105,13 +120,20 @@ const GameInfo: React.FC<GameInfoProps> = ({
                 <span className="compact-label">Status</span>
                 <div className="conn-indicator">
                   <span className={`conn-dot ${dotClass}`} />
-                  <span className="conn-text">{connLabel(isConnected, isGameStarted, isHost)}</span>
+                  <span className="conn-text">{connLabel(isConnected, isGameStarted, isHost, myPlayer)}</span>
                 </div>
               </div>
               {/* Rules */}
               <div className="compact-item">
                 <span className="compact-label">Rules</span>
                 <span className="rules-badge">{rules === 'renju' ? 'Renju' : 'Standard'}</span>
+              </div>
+              {/* Role */}
+              <div className="compact-item">
+                <span className="compact-label">Role</span>
+                <span className={`role-badge ${myPlayer ? 'player' : 'observer'}`}>
+                  {myPlayer === 1 ? '⚫ Black' : myPlayer === 2 ? '⚪ White' : '👁️ Observer'}
+                </span>
               </div>
               {/* Room */}
               <div className="compact-item">

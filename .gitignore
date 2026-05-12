@@ -54,5 +54,11 @@ Thumbs.db
 # Wrangler local state
 worker/.wrangler/
 
+# Deploy artifacts
+dist/
+
 # Project specific
 public/mockServiceWorker.js
+
+# Ignore local deploy script
+deploy.sh

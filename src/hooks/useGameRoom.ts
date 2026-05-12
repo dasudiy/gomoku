@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { verifyEvent } from 'nostr-tools';
 import { getOrCreateIdentity } from '../lib/identity';
 import {
-  GameTransport, createChainEvent,
+  GameTransport, createChainEvent, WORKER_URL,
   type GameEvent, type ChainPayload, type RoomMessage,
 } from '../lib/transport';
 import { createGame, placeMove, checkWin, type GameState, type Ruleset, type Player } from '../lib/game';
@@ -78,6 +78,8 @@ function replayChain(events: GameEvent[], fallbackRules: Ruleset): ChainState {
 
 export function useGameRoom() {
   const [identity] = useState(() => getOrCreateIdentity());
+  const [serverUrl, setServerUrlState] = useState(WORKER_URL);
+  const serverUrlRef = useRef(WORKER_URL);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [rules, setRules] = useState<Ruleset>('standard');
   const [myPlayer, setMyPlayer] = useState<Player | null>(null);
@@ -177,11 +179,12 @@ export function useGameRoom() {
       }
       isGameStartedRef.current = true;
       setIsGameStarted(true);
+      audio.playJoin();
       chatRef.current.addSystem('🟢 Game started!');
 
     } else if (payload.type === 'move') {
       const isRemote = ev.pubkey !== identity.pk;
-      if (isRemote) { audio.playMove(false); window.focus(); }
+      if (isRemote) { audio.playMove(false); }
       const currentTurn = turnRef.current;
       setGame(prev => {
         const next = placeMove(prev, payload.x, payload.y, currentTurn);
@@ -366,7 +369,7 @@ export function useGameRoom() {
         chatRef.current.addSystem('🔴 Disconnected — reconnecting…');
       },
       onError: (err) => console.error('[Transport]', err),
-    });
+    }, serverUrlRef.current);
   }, [identity.sk, handleMessage, applyChainEvent]);
 
   // Parse URL hash on load
@@ -430,9 +433,15 @@ export function useGameRoom() {
     chatRef.current.addSystem('🔄 You started a new game.');
   }, [identity.sk, applyChainEvent]);
 
+  const setServerUrl = useCallback((url: string) => {
+    serverUrlRef.current = url;
+    setServerUrlState(url);
+  }, []);
+
   return {
     identity, roomId, rules, isConnected, isGameStarted,
     myPlayer, turn, winner, game, wins, chat,
+    serverUrl, setServerUrl,
     startAsHost, handleMove, handleSendMessage,
     copyInvite, requestReset,
   };

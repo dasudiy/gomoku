@@ -1,7 +1,18 @@
 import { finalizeEvent, type Event as NostrEvent } from 'nostr-tools';
 import type { Ruleset } from './game';
 
-export const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'ws://localhost:8787';
+function resolveWorkerUrl(): string {
+  const env = import.meta.env.VITE_WORKER_URL;
+  if (env === undefined) return 'ws://localhost:8787'; // local dev default
+  if (env === '') {
+    // Same-origin mode: nginx proxies /room/* to the worker (Docker/self-hosted)
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${proto}://${window.location.host}`;
+  }
+  return env; // explicit URL for Cloudflare deploy
+}
+
+export const WORKER_URL = resolveWorkerUrl();
 
 // ── Chain-linked event payloads (signed Nostr events, form the game record) ──
 

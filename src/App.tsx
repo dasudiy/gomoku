@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
 import { useGameRoom } from './hooks/useGameRoom';
 import type { Ruleset } from './lib/game';
@@ -10,11 +10,25 @@ function App() {
   const {
     identity, roomId, rules, isConnected, isGameStarted,
     myPlayer, turn, winner, game, wins, chat,
+    serverUrl, setServerUrl,
     startAsHost, handleMove, handleSendMessage,
     copyInvite, requestReset,
   } = useGameRoom();
 
   const [selectedRules, setSelectedRules] = useState<Ruleset>('standard');
+
+  // Flash document title when it's my turn and the window isn't focused
+  useEffect(() => {
+    const isMyTurn = isGameStarted && winner === 0 && myPlayer !== null && turn === myPlayer;
+    if (!isMyTurn) { document.title = 'Gomoku'; return; }
+    if (document.hasFocus()) return;
+    const labels = ['▶ Your Turn! — Gomoku', 'Gomoku'];
+    let idx = 0;
+    const timer = setInterval(() => { document.title = labels[idx++ % 2]; }, 700);
+    const onFocus = () => { document.title = 'Gomoku'; };
+    window.addEventListener('focus', onFocus, { once: true });
+    return () => { clearInterval(timer); window.removeEventListener('focus', onFocus); document.title = 'Gomoku'; };
+  }, [turn, myPlayer, isGameStarted, winner]);
 
   const lastMove = game.moves.length > 0
     ? { x: game.moves[game.moves.length - 1].x, y: game.moves[game.moves.length - 1].y }
@@ -62,6 +76,8 @@ function App() {
             onHostGame={!roomId ? startAsHost : undefined}
             selectedRules={!roomId ? selectedRules : undefined}
             onSelectRules={!roomId ? setSelectedRules : undefined}
+            serverUrl={!roomId ? serverUrl : undefined}
+            onServerUrlChange={!roomId ? setServerUrl : undefined}
           />
         </aside>
 
