@@ -1,5 +1,7 @@
 # Gomoku — Online Board Game
 
+![Gomoku Preview](public/preview.png)
+
 A Gomoku (五子棋) game built with **React**, **Cloudflare Workers**, and **Nostr** cryptography. Games are relayed through a Cloudflare Durable Object, with every move cryptographically signed and chained — meaning the full game history is verifiable and players can reconnect after a disconnect without losing state.
 
 ## Features
