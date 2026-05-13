@@ -106,6 +106,27 @@ class AudioController {
       osc.stop(t + i * 0.2 + 0.3);
     });
   }
+
+  playJoin() {
+    this.init();
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    // Two rising "ding" tones
+    [880, 1108].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t + i * 0.15);
+      gain.gain.linearRampToValueAtTime(0.35, t + i * 0.15 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.15 + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t + i * 0.15);
+      osc.stop(t + i * 0.15 + 0.35);
+    });
+  }
 }
 
 export const audio = new AudioController();
