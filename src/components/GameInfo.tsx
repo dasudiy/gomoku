@@ -171,6 +171,7 @@ const GameInfo: React.FC<GameInfoProps> = ({
           )}
         </>
       )}
+
     </div>
   );
 };
