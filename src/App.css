@@ -110,7 +110,6 @@ body {
   transition: opacity 0.15s;
   margin-left: 8px;
 }
-}
 .header-github:hover { opacity: 1; }
 .header-github svg { width: 16px; height: 16px; }
 
@@ -813,6 +812,7 @@ body {
 }
 .btn-share:hover { border-color: var(--gold); background: rgba(255,200,50,0.07); }
 
+.btn-dismiss {
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);

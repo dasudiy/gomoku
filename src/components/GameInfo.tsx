@@ -64,8 +64,8 @@ const GameInfo: React.FC<GameInfoProps> = ({
 
   const handleShare = React.useCallback(() => {
     const url = window.location.href;
-    if (navigator.share) {
-      navigator.share({ title: 'Join my Gomoku game!', url }).catch(() => {});
+    if ('share' in navigator) {
+      (navigator.share as (data: ShareData) => Promise<void>)({ title: 'Join my Gomoku game!', url }).catch(() => {});
     } else {
       onCopyInvite();
     }
@@ -129,7 +129,7 @@ const GameInfo: React.FC<GameInfoProps> = ({
             </div>
             <div className="score-actions">
               <button className="btn-share" onClick={handleShare}>
-                {navigator.share ? '🔗 Share Invite' : '📋 Copy Invite'}
+                {'share' in navigator ? '🔗 Share Invite' : '📋 Copy Invite'}
               </button>
               <button
                 className="details-toggle"
