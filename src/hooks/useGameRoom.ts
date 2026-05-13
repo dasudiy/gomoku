@@ -434,8 +434,9 @@ export function useGameRoom() {
   }, [identity.sk, applyChainEvent]);
 
   const setServerUrl = useCallback((url: string) => {
-    serverUrlRef.current = url;
-    setServerUrlState(url);
+    const trimmed = url.replace(/\/+$/, '');
+    serverUrlRef.current = trimmed;
+    setServerUrlState(trimmed);
   }, []);
 
   return {
