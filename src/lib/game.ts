@@ -113,12 +113,61 @@ function checkDoubleFour(state: GameState, x: number, y: number): boolean {
   return fourCount >= 2;
 }
 
-/** A "four" = 4 in a row with at least one open end that could become 5. */
+/** A "four" (including jump-four) has at least one winning point in this line. */
 function hasFourInDirection(state: GameState, x: number, y: number, dx: number, dy: number): boolean {
-  const fwd = countInDirection(state, x, y, dx, dy, 1);
-  const bwd = countInDirection(state, x, y, -dx, -dy, 1);
-  const total = 1 + fwd + bwd;
-  return total === 4;
+  return collectFourWinningPoints(state, x, y, dx, dy).length >= 1;
+}
+
+/** An "open four" has at least two distinct winning points in this line. */
+function hasOpenFourInDirection(state: GameState, x: number, y: number, dx: number, dy: number): boolean {
+  return collectFourWinningPoints(state, x, y, dx, dy).length >= 2;
+}
+
+/**
+ * Collect all distinct empty points in this line that would complete a 5.
+ * Only windows that include the newly placed stone are counted.
+ */
+function collectFourWinningPoints(state: GameState, x: number, y: number, dx: number, dy: number): [number, number][] {
+  const points = new Set<string>();
+
+  for (let start = -4; start <= 0; start++) {
+    let blackCount = 0;
+    let emptyCount = 0;
+    let emptyX = -1;
+    let emptyY = -1;
+    let blocked = false;
+
+    for (let i = 0; i < 5; i++) {
+      const nx = x + (start + i) * dx;
+      const ny = y + (start + i) * dy;
+
+      if (!inBounds(nx, ny)) {
+        blocked = true;
+        break;
+      }
+
+      const cell = state.board[ny][nx];
+      if (cell === 1) {
+        blackCount++;
+      } else if (cell === 0) {
+        emptyCount++;
+        emptyX = nx;
+        emptyY = ny;
+      } else {
+        blocked = true;
+        break;
+      }
+    }
+
+    if (!blocked && blackCount === 4 && emptyCount === 1) {
+      points.add(`${emptyX},${emptyY}`);
+    }
+  }
+
+  return Array.from(points).map(key => {
+    const [px, py] = key.split(',').map(Number);
+    return [px, py] as [number, number];
+  });
 }
 
 function checkDoubleThree(state: GameState, x: number, y: number): boolean {
@@ -130,18 +179,24 @@ function checkDoubleThree(state: GameState, x: number, y: number): boolean {
   return threeCount >= 2;
 }
 
-/** An "open three" = 3 in a row with both ends open. */
+/**
+ * Open three (including broken open-three): one move in this line can create an open four.
+ */
 function hasOpenThreeInDirection(state: GameState, x: number, y: number, dx: number, dy: number): boolean {
-  const fwd = countInDirection(state, x, y, dx, dy, 1);
-  const bwd = countInDirection(state, x, y, -dx, -dy, 1);
-  const total = 1 + fwd + bwd;
-  if (total !== 3) return false;
+  for (let step = -4; step <= 4; step++) {
+    if (step === 0) continue;
+    const nx = x + step * dx;
+    const ny = y + step * dy;
+    if (!inBounds(nx, ny) || state.board[ny][nx] !== 0) continue;
 
-  // Check both ends are open
-  const frontX = x + dx * (fwd + 1), frontY = y + dy * (fwd + 1);
-  const backX = x - dx * (bwd + 1), backY = y - dy * (bwd + 1);
-  const frontOpen = inBounds(frontX, frontY) && state.board[frontY][frontX] === 0;
-  const backOpen = inBounds(backX, backY) && state.board[backY][backX] === 0;
+    const testBoard = state.board.map(r => [...r]);
+    testBoard[ny][nx] = 1;
+    const testState = { ...state, board: testBoard };
 
-  return frontOpen && backOpen;
+    if (hasOpenFourInDirection(testState, x, y, dx, dy)) {
+      return true;
+    }
+  }
+
+  return false;
 }
