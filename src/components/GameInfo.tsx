@@ -50,6 +50,7 @@ const GameInfo: React.FC<GameInfoProps> = ({
 }) => {
   const isHost = myPlayer === 1;
   const dotClass = connDotClass(isConnected, isGameStarted);
+  const [detailsOpen, setDetailsOpen] = React.useState(() => window.innerWidth >= 900);
 
   // Truncate invite URL for display
   const inviteDisplay = React.useMemo(() => {
@@ -60,6 +61,15 @@ const GameInfo: React.FC<GameInfoProps> = ({
     const hash = url.substring(hashIdx);
     return hash.length > 40 ? `${base}#${hash.substring(1, 30)}…` : url;
   }, [roomId]);
+
+  const handleShare = React.useCallback(() => {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: 'Join my Gomoku game!', url }).catch(() => {});
+    } else {
+      onCopyInvite();
+    }
+  }, [onCopyInvite]);
 
   return (
     <div className="info-panel">
@@ -104,46 +114,7 @@ const GameInfo: React.FC<GameInfoProps> = ({
       ) : (
         // ── In-game mode ──
         <>
-          {/* Compact info grid (collapses on mobile) */}
-          <section className="info-section info-compact">
-            <div className="compact-grid">
-              {/* Identity */}
-              <div className="compact-item">
-                <span className="compact-label">ID</span>
-                <div className="identity-box">
-                  <div className={`player-stone small ${myPlayer === 1 ? 'black' : myPlayer === 2 ? 'white' : 'none'}`} />
-                  <span className="identity-pk">{identity.pk.substring(0, 10)}…</span>
-                </div>
-              </div>
-              {/* Connection */}
-              <div className="compact-item">
-                <span className="compact-label">Status</span>
-                <div className="conn-indicator">
-                  <span className={`conn-dot ${dotClass}`} />
-                  <span className="conn-text">{connLabel(isConnected, isGameStarted, isHost, myPlayer)}</span>
-                </div>
-              </div>
-              {/* Rules */}
-              <div className="compact-item">
-                <span className="compact-label">Rules</span>
-                <span className="rules-badge">{rules === 'renju' ? 'Renju' : 'Standard'}</span>
-              </div>
-              {/* Role */}
-              <div className="compact-item">
-                <span className="compact-label">Role</span>
-                <span className={`role-badge ${myPlayer ? 'player' : 'observer'}`}>
-                  {myPlayer === 1 ? '⚫ Black' : myPlayer === 2 ? '⚪ White' : '👁️ Observer'}
-                </span>
-              </div>
-              {/* Room */}
-              <div className="compact-item">
-                <span className="compact-label">Room</span>
-                <span className="room-id">{roomId}</span>
-              </div>
-            </div>
-          </section>
-
-          {/* Players + Score — always visible */}
+          {/* Players + Score row — always visible */}
           <section className="info-section">
             <div className="players-score-row">
               <PlayerBadge player={1} label={`Black${myPlayer === 1 ? ' (You)' : ''}`}
@@ -156,17 +127,62 @@ const GameInfo: React.FC<GameInfoProps> = ({
               <PlayerBadge player={2} label={`White${myPlayer === 2 ? ' (You)' : ''}`}
                 isActive={!winner && turn === 2} isWinner={winner === 2} />
             </div>
+            <div className="score-actions">
+              <button className="btn-share" onClick={handleShare}>
+                {navigator.share ? '🔗 Share Invite' : '📋 Copy Invite'}
+              </button>
+              <button
+                className="details-toggle"
+                onClick={() => setDetailsOpen(o => !o)}
+                aria-expanded={detailsOpen}
+              >
+                {detailsOpen ? '▲ Less' : '▼ Details'}
+              </button>
+            </div>
           </section>
 
-          {/* Invite link (host only, not connected) */}
+          {/* Collapsible info grid */}
+          {detailsOpen && (
+            <section className="info-section info-compact">
+              <div className="compact-grid">
+                <div className="compact-item">
+                  <span className="compact-label">ID</span>
+                  <div className="identity-box">
+                    <div className={`player-stone small ${myPlayer === 1 ? 'black' : myPlayer === 2 ? 'white' : 'none'}`} />
+                    <span className="identity-pk">{identity.pk.substring(0, 10)}…</span>
+                  </div>
+                </div>
+                <div className="compact-item">
+                  <span className="compact-label">Status</span>
+                  <div className="conn-indicator">
+                    <span className={`conn-dot ${dotClass}`} />
+                    <span className="conn-text">{connLabel(isConnected, isGameStarted, isHost, myPlayer)}</span>
+                  </div>
+                </div>
+                <div className="compact-item">
+                  <span className="compact-label">Rules</span>
+                  <span className="rules-badge">{rules === 'renju' ? 'Renju' : 'Standard'}</span>
+                </div>
+                <div className="compact-item">
+                  <span className="compact-label">Role</span>
+                  <span className={`role-badge ${myPlayer ? 'player' : 'observer'}`}>
+                    {myPlayer === 1 ? '⚫ Black' : myPlayer === 2 ? '⚪ White' : '👁️ Observer'}
+                  </span>
+                </div>
+                <div className="compact-item">
+                  <span className="compact-label">Room</span>
+                  <span className="room-id">{roomId}</span>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Invite URL preview — host only, not yet connected */}
           {!isConnected && isHost && (
             <section className="info-section">
               <h3 className="info-label">Invite</h3>
               <p className="invite-hint">Share this link with your opponent:</p>
               <div className="invite-url">{inviteDisplay}</div>
-              <button className="btn-primary" onClick={onCopyInvite}>
-                📋 Copy Invite Link
-              </button>
             </section>
           )}
         </>
