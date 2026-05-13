@@ -1,4 +1,4 @@
-name = "gomoku-server"
+name = 'gomoku'
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
